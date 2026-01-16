@@ -1,0 +1,40 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+model Report {
+  id              String   @id @default(cuid())
+  executionId     String   @unique
+  title           String?
+  
+  // Input data
+  inputFindings   Json     // Original JSON input
+  
+  // Analysis results
+  summary         Json     // { total: 10, critical: 2, high: 3, medium: 4, low: 1 }
+  
+  // Output
+  pdfUrl          String?
+  pdfPath         String?  // Local file path
+  fileSize        String?  // "7.71 KB"
+  
+  // Status
+  status          String   @default("PROCESSING") // PROCESSING, COMPLETED, FAILED
+  
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  generatedAt     DateTime
+}

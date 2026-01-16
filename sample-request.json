@@ -1,0 +1,64 @@
+{
+  "executionId": "SOC-REPORT-2024-001",
+  "metadata": {
+    "scanStart": "2024-01-15T09:00:00Z",
+    "scanEnd": "2024-01-15T10:00:00Z",
+    "scanner": "Commander Agent v2.1"
+  },
+  "findings": [
+    {
+      "id": "FND-001",
+      "title": "Brute Force Attack Detected",
+      "severity": "CRITICAL",
+      "description": "Multiple failed SSH login attempts (over 100) from IP 192.168.1.100 to server web-01. Attack pattern suggests automated brute force attempt.",
+      "recommendation": "1. Block IP 192.168.1.100 in firewall\n2. Enable account lockout policy\n3. Review SSH configuration\n4. Implement fail2ban",
+      "timestamp": "2024-01-15T09:30:25Z",
+      "source": "Firewall Logs"
+    },
+    {
+      "id": "FND-002",
+      "title": "SQL Injection Attempt",
+      "severity": "HIGH",
+      "description": "SQL injection pattern detected in web application logs. Attempt to inject ' OR '1'='1' -- into login form parameter.",
+      "recommendation": "1. Implement input validation\n2. Add WAF rules for SQL injection\n3. Review application code\n4. Enable prepared statements",
+      "timestamp": "2024-01-15T09:45:10Z",
+      "source": "Web Server"
+    },
+    {
+      "id": "FND-003",
+      "title": "Outdated Apache Version",
+      "severity": "MEDIUM",
+      "description": "Apache HTTP Server running version 2.4.49 which has known vulnerabilities. Current secure version is 2.4.58.",
+      "recommendation": "1. Update Apache to version 2.4.58\n2. Apply security patches\n3. Schedule regular updates\n4. Monitor for vulnerabilities",
+      "timestamp": "2024-01-15T09:15:00Z",
+      "source": "Vulnerability Scanner"
+    },
+    {
+      "id": "FND-004",
+      "title": "Weak Password Policy",
+      "severity": "MEDIUM",
+      "description": "Password policy allows passwords less than 8 characters and doesn't require complexity. 15 user accounts found with weak passwords.",
+      "recommendation": "1. Enforce 12-character minimum\n2. Require special characters\n3. Implement password expiration\n4. Enable MFA",
+      "timestamp": "2024-01-15T09:50:00Z",
+      "source": "Active Directory"
+    },
+    {
+      "id": "FND-005",
+      "title": "Missing Security Headers",
+      "severity": "LOW",
+      "description": "Web application missing security headers: Content-Security-Policy, X-Frame-Options, X-Content-Type-Options.",
+      "recommendation": "1. Add CSP header\n2. Add X-Frame-Options: DENY\n3. Add X-Content-Type-Options: nosniff\n4. Add Referrer-Policy",
+      "timestamp": "2024-01-15T09:20:00Z",
+      "source": "Web Security Scan"
+    },
+    {
+      "id": "FND-006",
+      "title": "Unencrypted Database Backup",
+      "severity": "HIGH",
+      "description": "Database backup files stored in /backups directory without encryption. Contains sensitive PII data.",
+      "recommendation": "1. Encrypt backup files\n2. Restrict access to backup directory\n3. Implement backup encryption policy\n4. Monitor backup process",
+      "timestamp": "2024-01-15T09:55:00Z",
+      "source": "File System Scan"
+    }
+  ]
+}
