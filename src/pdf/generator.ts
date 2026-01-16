@@ -1,7 +1,7 @@
 import PDFDocument from 'pdfkit';
 
 export interface SecurityFinding {
-  id: string;
+  id?: string;
   title: string;
   severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   description: string;
@@ -23,260 +23,412 @@ export interface ReportData {
   };
 }
 
+interface SeverityInfo {
+  label: string;
+  count: number;
+  color: string;
+  bgColor: string;
+  icon: string;
+}
+
 export class PDFGenerator {
+  private readonly colors = {
+    primary: '#1e3a8a',
+    secondary: '#3b82f6',
+    critical: '#dc2626',
+    high: '#f97316',
+    medium: '#eab308',
+    low: '#22c55e',
+    text: '#1f2937',
+    textLight: '#6b7280',
+    border: '#e5e7eb',
+    background: '#f9fafb',
+    white: '#ffffff',
+  };
+
+  private pageCount = 0;
+
   async generateReport(reportData: ReportData): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       try {
-        console.log(`📄 Generating PDF for: ${reportData.executionId}`);
-        
-        const doc = new PDFDocument({ 
-          margin: 50,
+        this.pageCount = 0;
+
+        const doc = new PDFDocument({
+          margin: 60,
           size: 'A4',
           info: {
-            Title: `SOC Report - ${reportData.executionId}`,
-            Author: 'SOC Report Generator',
+            Title: `SOC Security Report - ${reportData.executionId}`,
+            Author: 'SOC Report Generator v2.0',
+            Subject: 'Security Assessment Report',
+            Keywords: 'security, soc, assessment, findings',
             CreationDate: new Date(),
-          }
+          },
+          autoFirstPage: false, // We'll add pages manually to track count
         });
 
         const buffers: Buffer[] = [];
-        
+
         doc.on('data', (chunk) => buffers.push(chunk));
-        doc.on('end', () => {
-          console.log(`✅ PDF generated: ${buffers.length} bytes`);
-          resolve(Buffer.concat(buffers));
-        });
+        doc.on('end', () => resolve(Buffer.concat(buffers)));
         doc.on('error', reject);
 
-        // ========== COVER PAGE ==========
-        // Header
-        doc.fontSize(32)
-          .font('Helvetica-Bold')
-          .fillColor('#1e40af')
-          .text('SECURITY OPERATIONS CENTER', { align: 'center' });
-        
-        doc.moveDown(0.5);
-        doc.fontSize(24)
-          .text('SECURITY REPORT', { align: 'center' });
-        
-        doc.moveDown(2);
-        
-        // Report Details
-        doc.fontSize(14)
-          .font('Helvetica')
-          .fillColor('#000000')
-          .text(`Report ID: ${reportData.executionId}`, { align: 'center' });
-        
-        doc.text(`Generated: ${reportData.metadata.generatedAt.toLocaleDateString()}`, { align: 'center' });
-        doc.text(`Time: ${reportData.metadata.generatedAt.toLocaleTimeString()}`, { align: 'center' });
-        
-        doc.moveDown(3);
-        
-        // Summary Box
-        const summaryX = 100;
-        const summaryY = doc.y;
-        const summaryWidth = 400;
-        
-        doc.rect(summaryX, summaryY, summaryWidth, 120)
-          .fill('#f3f4f6')
-          .stroke('#d1d5db');
-        
-        doc.fontSize(16)
-          .font('Helvetica-Bold')
-          .fillColor('#1e40af')
-          .text('EXECUTIVE SUMMARY', summaryX + 20, summaryY + 20);
-        
-        doc.fontSize(12)
-          .font('Helvetica')
-          .fillColor('#000000');
-        
-        const lines = [
-          `Total Findings: ${reportData.metadata.totalFindings}`,
-          `Critical: ${reportData.metadata.criticalCount}`,
-          `High: ${reportData.metadata.highCount}`,
-          `Medium: ${reportData.metadata.mediumCount}`,
-          `Low: ${reportData.metadata.lowCount}`,
-        ];
-        
-        lines.forEach((line, index) => {
-          doc.text(line, summaryX + 40, summaryY + 50 + (index * 15));
-        });
-        
-        doc.moveDown(6);
-        
-        // Footer note
-        doc.fontSize(10)
-          .fillColor('#6b7280')
-          .text('CONFIDENTIAL - FOR AUTHORIZED PERSONNEL ONLY', { align: 'center' });
+        // Add first page manually
+        this.addNewPage(doc);
 
-        doc.addPage();
+        this.addCoverPage(doc, reportData);
+        this.addExecutiveSummary(doc, reportData);
+        this.addDetailedFindings(doc, reportData);
 
-        // ========== EXECUTIVE SUMMARY PAGE ==========
-        doc.fontSize(20)
-          .font('Helvetica-Bold')
-          .fillColor('#1e40af')
-          .text('Executive Summary', { underline: true });
-        
-        doc.moveDown();
-        
-        doc.fontSize(12)
-          .font('Helvetica')
-          .fillColor('#000000')
-          .text('This report summarizes security findings identified during the assessment period.', { lineGap: 5 });
-        
-        doc.moveDown();
-        
-        // Severity Distribution
-        doc.fontSize(16)
-          .font('Helvetica-Bold')
-          .text('Severity Distribution:');
-        
-        doc.moveDown(0.5);
-        
-        const severities = [
-          { label: 'Critical', count: reportData.metadata.criticalCount, color: '#dc2626' },
-          { label: 'High', count: reportData.metadata.highCount, color: '#f97316' },
-          { label: 'Medium', count: reportData.metadata.mediumCount, color: '#eab308' },
-          { label: 'Low', count: reportData.metadata.lowCount, color: '#22c55e' },
-        ];
-        
-        severities.forEach((sev, index) => {
-          const y = doc.y;
-          const barWidth = Math.max(50, 300 * (sev.count / Math.max(1, reportData.metadata.totalFindings)));
-          doc.rect(100, y, barWidth, 20)
-            .fill(sev.color)
-            .stroke('#000000');
-          
-          doc.fontSize(12)
-            .fillColor('#000000')
-            .text(`${sev.label}: ${sev.count} findings`, 420, y + 4);
-          
-          doc.moveDown(1.5);
-        });
-        
-        doc.moveDown();
-        
-        // Recommendations
-        doc.fontSize(16)
-          .font('Helvetica-Bold')
-          .text('Key Recommendations:');
-        
-        doc.moveDown(0.5);
-        
-        const recommendations = [
-          '1. Address critical findings within 24 hours',
-          '2. Review high severity findings within 48 hours',
-          '3. Implement monitoring for identified threat patterns',
-          '4. Update security policies based on findings',
-        ];
-        
-        recommendations.forEach(rec => {
-          doc.fontSize(12)
-            .text(rec, { indent: 20, lineGap: 3 });
-        });
-
-        doc.addPage();
-
-        // ========== DETAILED FINDINGS PAGE ==========
-        doc.fontSize(20)
-          .font('Helvetica-Bold')
-          .fillColor('#1e40af')
-          .text('Detailed Security Findings', { underline: true });
-        
-        doc.moveDown();
-        
-        reportData.findings.forEach((finding, index) => {
-          // Check if we need a new page
-          if (doc.y > 650) {
-            doc.addPage();
-            doc.fontSize(10)
-              .fillColor('#6b7280')
-              .text(
-                'Generated by SOC Report Generator - CONFIDENTIAL',
-                50,
-                doc.page.height - 30,
-                { align: 'center' }
-              );
-          }
-          
-          // Finding header with colored severity
-          doc.fontSize(16)
-            .font('Helvetica-Bold')
-            .fillColor('#000000')
-            .text(`${index + 1}. ${finding.title}`);
-          
-          doc.fontSize(12)
-            .fillColor(this.getSeverityColor(finding.severity))
-            .text(`[${finding.severity}]`, { continued: false })
-            .fillColor('#6b7280')
-            .text(` • Source: ${finding.source} • Time: ${new Date(finding.timestamp).toLocaleString()}`, { continued: false });
-          
-          doc.moveDown(0.5);
-          
-          // Description
-          doc.fontSize(12)
-            .fillColor('#000000')
-            .font('Helvetica-Bold')
-            .text('Description:', { indent: 20 });
-          
-          doc.fontSize(11)
-            .font('Helvetica')
-            .text(finding.description, { indent: 40, width: 450, lineGap: 3 });
-          
-          doc.moveDown(0.3);
-          
-          // Recommendation
-          doc.fontSize(12)
-            .font('Helvetica-Bold')
-            .text('Recommendation:', { indent: 20 });
-          
-          doc.fontSize(11)
-            .font('Helvetica')
-            .fillColor('#065f46')
-            .text(finding.recommendation, { indent: 40, width: 450, lineGap: 3 });
-          
-          // Separator
-          doc.moveDown(0.5);
-          doc.moveTo(50, doc.y)
-            .lineTo(550, doc.y)
-            .strokeColor('#d1d5db')
-            .lineWidth(1)
-            .stroke();
-          
-          doc.moveDown();
-        });
-
-        // Final footer
-        const yPosition = doc.page.height - 30;
-        doc.fontSize(8)
-          .fillColor('#6b7280')
-          .text(
-            'Generated by SOC Report Generator - CONFIDENTIAL',
-            50,
-            yPosition,
-            { align: 'center' }
-          );
+        // Add footer to last page
+        this.addPageFooter(doc);
 
         doc.end();
       } catch (error) {
-        console.error('❌ PDF generation error:', error);
         reject(error);
       }
     });
   }
 
+  private addNewPage(doc: typeof PDFDocument.prototype): void {
+    // Add footer to current page before moving to next (if not first page)
+    if (this.pageCount > 0) {
+      this.addPageFooter(doc);
+    }
+    doc.addPage();
+    this.pageCount++;
+  }
+
+  private addPageFooter(doc: typeof PDFDocument.prototype): void {
+    const footerY = doc.page.height - 50;
+
+    doc.moveTo(60, footerY)
+      .lineTo(doc.page.width - 60, footerY)
+      .lineWidth(1)
+      .strokeColor(this.colors.border)
+      .stroke();
+
+    doc.fontSize(8)
+      .font('Helvetica')
+      .fillColor(this.colors.textLight)
+      .text(
+        `Page ${this.pageCount}`,
+        60,
+        footerY + 10,
+        { width: doc.page.width - 120, align: 'center' }
+      );
+
+    doc.fontSize(7)
+      .text(
+        'Generated by SOC Report Generator v2.0 • CONFIDENTIAL',
+        60,
+        footerY + 24,
+        { width: doc.page.width - 120, align: 'center' }
+      );
+  }
+
+  private addCoverPage(doc: typeof PDFDocument.prototype, reportData: ReportData): void {
+    const pageWidth = doc.page.width;
+    const pageHeight = doc.page.height;
+
+    doc.rect(0, 0, pageWidth, 200).fill(this.colors.primary);
+
+    doc.fontSize(36)
+      .font('Helvetica-Bold')
+      .fillColor(this.colors.white)
+      .text('SECURITY OPERATIONS CENTER', 60, 70, { align: 'center', width: pageWidth - 120 });
+
+    doc.fontSize(24)
+      .fillColor('#93c5fd')
+      .text('Security Assessment Report', 60, 130, { align: 'center', width: pageWidth - 120 });
+
+    doc.fillColor(this.colors.text);
+
+    doc.fontSize(18)
+      .font('Helvetica-Bold')
+      .fillColor(this.colors.primary)
+      .text('Report Details', 60, 250);
+
+    const detailsY = 290;
+    const lineHeight = 28;
+
+    const details = [
+      { label: 'Report ID:', value: reportData.executionId },
+      {
+        label: 'Generated:', value: reportData.metadata.generatedAt.toLocaleDateString('en-US', {
+          year: 'numeric', month: 'long', day: 'numeric'
+        })
+      },
+      { label: 'Time:', value: reportData.metadata.generatedAt.toLocaleTimeString('en-US') },
+      { label: 'Total Findings:', value: reportData.metadata.totalFindings.toString() },
+      { label: 'Status:', value: 'Completed' },
+    ];
+
+    details.forEach((detail, i) => {
+      const y = detailsY + (i * lineHeight);
+      doc.fontSize(11)
+        .font('Helvetica-Bold')
+        .fillColor(this.colors.textLight)
+        .text(detail.label, 80, y, { width: 150, continued: true })
+        .font('Helvetica')
+        .fillColor(this.colors.text)
+        .text(detail.value, { width: 300 });
+    });
+
+    const summaryBoxY = 470;
+    const boxWidth = pageWidth - 120;
+    const boxHeight = 160;
+
+    doc.roundedRect(60, summaryBoxY, boxWidth, boxHeight, 8)
+      .fillAndStroke(this.colors.background, this.colors.border);
+
+    doc.fontSize(16)
+      .font('Helvetica-Bold')
+      .fillColor(this.colors.primary)
+      .text('Findings Summary', 80, summaryBoxY + 20);
+
+    const severities: SeverityInfo[] = [
+      { label: 'Critical', count: reportData.metadata.criticalCount, color: this.colors.critical, bgColor: '#fee2e2', icon: '⚠' },
+      { label: 'High', count: reportData.metadata.highCount, color: this.colors.high, bgColor: '#ffedd5', icon: '●' },
+      { label: 'Medium', count: reportData.metadata.mediumCount, color: this.colors.medium, bgColor: '#fef9c3', icon: '●' },
+      { label: 'Low', count: reportData.metadata.lowCount, color: this.colors.low, bgColor: '#dcfce7', icon: '●' },
+    ];
+
+    const badgeStartY = summaryBoxY + 55;
+    const badgeSpacing = (boxWidth - 40) / 4;
+
+    severities.forEach((sev, i) => {
+      const badgeX = 70 + (i * badgeSpacing);
+      const badgeWidth = badgeSpacing - 10;
+
+      doc.roundedRect(badgeX, badgeStartY, badgeWidth, 70, 6)
+        .fillAndStroke(sev.bgColor, sev.color);
+
+      doc.fontSize(28)
+        .font('Helvetica-Bold')
+        .fillColor(sev.color)
+        .text(sev.count.toString(), badgeX, badgeStartY + 12, { width: badgeWidth, align: 'center' });
+
+      doc.fontSize(10)
+        .font('Helvetica')
+        .fillColor(this.colors.textLight)
+        .text(sev.label, badgeX, badgeStartY + 48, { width: badgeWidth, align: 'center' });
+    });
+
+    doc.fontSize(9)
+      .fillColor(this.colors.textLight)
+      .text('CONFIDENTIAL - FOR AUTHORIZED PERSONNEL ONLY', 60, pageHeight - 100, {
+        align: 'center',
+        width: pageWidth - 120,
+      });
+
+    this.addNewPage(doc);
+  }
+
+  private addExecutiveSummary(doc: typeof PDFDocument.prototype, reportData: ReportData): void {
+    doc.fontSize(24)
+      .font('Helvetica-Bold')
+      .fillColor(this.colors.primary)
+      .text('Executive Summary', 60, 80);
+
+    doc.moveTo(60, 115)
+      .lineTo(doc.page.width - 60, 115)
+      .lineWidth(2)
+      .strokeColor(this.colors.secondary)
+      .stroke();
+
+    doc.fontSize(11)
+      .font('Helvetica')
+      .fillColor(this.colors.text)
+      .text(
+        'This security assessment report provides a comprehensive analysis of security findings identified during the monitoring period. Each finding has been categorized by severity and includes detailed recommendations for remediation.',
+        60,
+        140,
+        { width: doc.page.width - 120, lineGap: 4, align: 'justify' }
+      );
+
+    doc.moveDown(2);
+
+    doc.fontSize(16)
+      .font('Helvetica-Bold')
+      .fillColor(this.colors.primary)
+      .text('Risk Distribution Analysis', 60, doc.y);
+
+    doc.moveDown(0.8);
+
+    const severities = [
+      { label: 'Critical', count: reportData.metadata.criticalCount, color: this.colors.critical },
+      { label: 'High', count: reportData.metadata.highCount, color: this.colors.high },
+      { label: 'Medium', count: reportData.metadata.mediumCount, color: this.colors.medium },
+      { label: 'Low', count: reportData.metadata.lowCount, color: this.colors.low },
+    ];
+
+    const maxCount = Math.max(...severities.map(s => s.count), 1);
+    const chartWidth = 350;
+    const chartStartX = 120;
+
+    severities.forEach((sev) => {
+      const y = doc.y;
+      const barWidth = (sev.count / maxCount) * chartWidth;
+
+      doc.rect(chartStartX, y, barWidth > 5 ? barWidth : 5, 24)
+        .fill(sev.color);
+
+      doc.fontSize(11)
+        .font('Helvetica-Bold')
+        .fillColor(this.colors.text)
+        .text(sev.label, 60, y + 6, { width: 50 });
+
+      doc.font('Helvetica')
+        .text(`${sev.count} finding${sev.count !== 1 ? 's' : ''}`, chartStartX + barWidth + 10, y + 6);
+
+      doc.moveDown(1.3);
+    });
+
+    doc.moveDown(1.5);
+
+    doc.fontSize(16)
+      .font('Helvetica-Bold')
+      .fillColor(this.colors.primary)
+      .text('Recommended Actions', 60, doc.y);
+
+    doc.moveDown(0.8);
+
+    const recommendations = [
+      { text: 'Address all critical findings within 24 hours', priority: 'Critical' },
+      { text: 'Review and remediate high severity findings within 48 hours', priority: 'High' },
+      { text: 'Implement fixes for medium severity findings within 1 week', priority: 'Medium' },
+      { text: 'Schedule low severity findings for next maintenance window', priority: 'Low' },
+      { text: 'Update security policies based on identified patterns', priority: 'General' },
+      { text: 'Enhance monitoring for detected threat vectors', priority: 'General' },
+    ];
+
+    recommendations.forEach((rec) => {
+      doc.fontSize(10)
+        .font('Helvetica')
+        .fillColor(this.colors.text)
+        .text('• ', 70, doc.y, { continued: true })
+        .text(rec.text, { width: doc.page.width - 140, lineGap: 2 });
+
+      doc.moveDown(0.6);
+    });
+
+    this.addNewPage(doc);
+  }
+
+  private addDetailedFindings(doc: typeof PDFDocument.prototype, reportData: ReportData): void {
+    doc.fontSize(24)
+      .font('Helvetica-Bold')
+      .fillColor(this.colors.primary)
+      .text('Detailed Security Findings', 60, 80);
+
+    doc.moveTo(60, 115)
+      .lineTo(doc.page.width - 60, 115)
+      .lineWidth(2)
+      .strokeColor(this.colors.secondary)
+      .stroke();
+
+    doc.moveDown(2);
+
+    reportData.findings.forEach((finding, index) => {
+      if (this.estimateFindingHeight(finding) + doc.y > doc.page.height - 100) {
+        this.addNewPage(doc);
+      }
+
+      const findingStartY = doc.y;
+
+      doc.roundedRect(55, findingStartY - 5, doc.page.width - 110, this.estimateFindingHeight(finding), 8)
+        .fillAndStroke('#fafafa', this.colors.border);
+
+      const severityColor = this.getSeverityColor(finding.severity);
+      const badgeWidth = 90;
+      const badgeHeight = 28;
+      const badgeX = doc.page.width - 70 - badgeWidth;
+      const badgeY = findingStartY;
+
+      doc.roundedRect(badgeX, badgeY, badgeWidth, badgeHeight, 6)
+        .fillAndStroke(severityColor + '20', severityColor);
+
+      doc.fontSize(11)
+        .font('Helvetica-Bold')
+        .fillColor(severityColor)
+        .text(finding.severity, badgeX, badgeY + 8, { width: badgeWidth, align: 'center' });
+
+      doc.fontSize(14)
+        .font('Helvetica-Bold')
+        .fillColor(this.colors.text)
+        .text(`${index + 1}. ${finding.title}`, 70, findingStartY + 3, { width: badgeX - 80 });
+
+      doc.fontSize(9)
+        .font('Helvetica')
+        .fillColor(this.colors.textLight)
+        .text(
+          `Source: ${finding.source} | ${new Date(finding.timestamp).toLocaleString('en-US')}`,
+          70,
+          findingStartY + 32,
+          { width: doc.page.width - 140 }
+        );
+
+      doc.moveDown(0.3);
+
+      doc.fontSize(10)
+        .font('Helvetica-Bold')
+        .fillColor(this.colors.primary)
+        .text('Description:', 70, doc.y);
+
+      doc.fontSize(10)
+        .font('Helvetica')
+        .fillColor(this.colors.text)
+        .text(finding.description, 90, doc.y - 12, {
+          width: doc.page.width - 160,
+          lineGap: 3,
+          align: 'justify',
+        });
+
+      doc.moveDown(0.5);
+
+      doc.fontSize(10)
+        .font('Helvetica-Bold')
+        .fillColor('#047857')
+        .text('Recommended Action:', 70, doc.y);
+
+      doc.fontSize(10)
+        .font('Helvetica')
+        .fillColor('#065f46')
+        .text(finding.recommendation, 90, doc.y - 12, {
+          width: doc.page.width - 160,
+          lineGap: 3,
+          align: 'justify',
+        });
+
+      doc.moveDown(1.5);
+    });
+  }
+
+
+
+  private estimateFindingHeight(finding: SecurityFinding): number {
+    const titleHeight = 40;
+    const metadataHeight = 25;
+    const descriptionLines = Math.ceil(finding.description.length / 90);
+    const descriptionHeight = descriptionLines * 14 + 20;
+    const recommendationLines = Math.ceil(finding.recommendation.length / 90);
+    const recommendationHeight = recommendationLines * 14 + 20;
+    const padding = 30;
+
+    return titleHeight + metadataHeight + descriptionHeight + recommendationHeight + padding;
+  }
+
   private getSeverityColor(severity: string): string {
-    switch (severity) {
-      case 'CRITICAL': return '#dc2626';
-      case 'HIGH': return '#f97316';
-      case 'MEDIUM': return '#eab308';
-      case 'LOW': return '#22c55e';
-      default: return '#000000';
+    switch (severity.toUpperCase()) {
+      case 'CRITICAL': return this.colors.critical;
+      case 'HIGH': return this.colors.high;
+      case 'MEDIUM': return this.colors.medium;
+      case 'LOW': return this.colors.low;
+      default: return this.colors.textLight;
     }
   }
 
-  // Helper function to analyze findings
-  analyzeFindings(findings: any[]): {
+  analyzeFindings(findings: SecurityFinding[]): {
     totalFindings: number;
     criticalCount: number;
     highCount: number;
@@ -291,13 +443,21 @@ export class PDFGenerator {
       lowCount: 0,
     };
 
-    findings.forEach(finding => {
+    findings.forEach((finding) => {
       const severity = (finding.severity || 'MEDIUM').toUpperCase();
       switch (severity) {
-        case 'CRITICAL': counts.criticalCount++; break;
-        case 'HIGH': counts.highCount++; break;
-        case 'MEDIUM': counts.mediumCount++; break;
-        case 'LOW': counts.lowCount++; break;
+        case 'CRITICAL':
+          counts.criticalCount++;
+          break;
+        case 'HIGH':
+          counts.highCount++;
+          break;
+        case 'MEDIUM':
+          counts.mediumCount++;
+          break;
+        case 'LOW':
+          counts.lowCount++;
+          break;
       }
     });
 
