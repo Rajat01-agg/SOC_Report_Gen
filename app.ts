@@ -5,7 +5,7 @@ import helmet from 'helmet';
 import path from 'path';
 import fs from 'fs';
 import dotenv from 'dotenv';
-import reportRoutes from './src/routes/reports';
+import reportRoutes from './src/routes/reports.ts';
 
 dotenv.config();
 
