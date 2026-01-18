@@ -7,7 +7,12 @@
     "dev": "nodemon src/app.ts",
     "test": "echo \"No tests configured\" && exit 1",
     "build": "tsc",
-    "start": "node dist/app.js"
+    "start": "node dist/app.js",
+    "docker:build": "docker build -t soc-report-gen:latest .",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f app",
+    "docker:restart": "docker-compose restart app"
   },
   "keywords": [],
   "author": "",
@@ -16,18 +21,22 @@
   "dependencies": {
     "@prisma/client": "^6.19.2",
     "bullmq": "^5.66.5",
+    "cloudinary": "^2.0.6",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "express-rate-limit": "^8.2.1",
     "helmet": "^8.1.0",
     "ioredis": "^5.9.1",
+    "multer": "^1.4.5-lts.1",
+    "multer-storage-cloudinary": "^4.0.0",
     "pdfkit": "^0.17.2",
     "prisma": "^6.19.2"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/multer": "^1.4.11",
     "@types/node": "^25.0.9",
     "@types/pdfkit": "^0.17.4",
     "eslint": "^9.39.2",
